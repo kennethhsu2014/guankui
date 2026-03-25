@@ -4,7 +4,7 @@ import android.app.Notification
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import java.util.Date
+import android.util.Log
 
 class NotificationListener : NotificationListenerService() {
 
@@ -17,8 +17,11 @@ class NotificationListener : NotificationListenerService() {
             val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
             val time = sbn.postTime
 
+            Log.d("NotificationListener", "收到通知: package=$packageName, app=$appName, title=$title, text=$text")
+
             // 过滤掉自己的通知
             if (packageName == applicationContext.packageName) {
+                Log.d("NotificationListener", "过滤自己的通知")
                 return
             }
 
@@ -33,8 +36,12 @@ class NotificationListener : NotificationListenerService() {
                 )
                 val db = AppDatabase.getDatabase(applicationContext)
                 db.messageDao().insert(message)
+                Log.d("NotificationListener", "已保存到数据库: $appName - $title")
+            } else {
+                Log.d("NotificationListener", "通知内容为空，跳过")
             }
         } catch (e: Exception) {
+            Log.e("NotificationListener", "处理通知失败", e)
             e.printStackTrace()
         }
     }
