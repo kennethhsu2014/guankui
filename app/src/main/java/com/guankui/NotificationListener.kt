@@ -18,7 +18,7 @@ class NotificationListener : NotificationListenerService() {
             val time = sbn.postTime
 
             // 过滤掉自己的通知
-            if (packageName == packageName) {
+            if (packageName == applicationContext.packageName) {
                 return
             }
 
