@@ -9,9 +9,13 @@ import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -21,14 +25,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            setContentView(R.layout.activity_main)
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error setting content view", e)
-            Toast.makeText(this, "布局加载失败: ${e.message}", Toast.LENGTH_LONG).show()
-            finish()
-            return
-        }
+        setContentView(R.layout.activity_main)
 
         try {
             setSupportActionBar(findViewById(R.id.toolbar))
@@ -36,27 +33,22 @@ class MainActivity : AppCompatActivity() {
             Log.e("MainActivity", "Error setting toolbar", e)
         }
 
-        try {
-            recyclerView = findViewById(R.id.recyclerView)
-            recyclerView.layoutManager = LinearLayoutManager(this)
-            adapter = MessageAdapter(messageList)
-            recyclerView.adapter = adapter
+        recyclerView = findViewById(R.id.recyclerView)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        adapter = MessageAdapter(messageList)
+        recyclerView.adapter = adapter
 
-            val fab: FloatingActionButton = findViewById(R.id.fab)
-            fab.setOnClickListener {
-                showClearConfirmDialog()
-            }
-
-            // 检查通知监听权限
-            if (!isNotificationServiceEnabled()) {
-                showEnableNotificationDialog()
-            }
-
-            loadMessages()
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error in onCreate", e)
-            Toast.makeText(this, "初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
+        val fab: FloatingActionButton = findViewById(R.id.fab)
+        fab.setOnClickListener {
+            showClearConfirmDialog()
         }
+
+        // 检查通知监听权限
+        if (!isNotificationServiceEnabled()) {
+            showEnableNotificationDialog()
+        }
+
+        loadMessages()
     }
 
     private fun isNotificationServiceEnabled(): Boolean {
@@ -101,36 +93,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadMessages() {
-        try {
-            val db = AppDatabase.getDatabase(this)
-            messageList.clear()
-            messageList.addAll(db.messageDao().getAllMessages())
-            adapter.notifyDataSetChanged()
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error loading messages", e)
-            Toast.makeText(this, "加载消息失败: ${e.message}", Toast.LENGTH_LONG).show()
+        lifecycleScope.launch {
+            try {
+                val db = AppDatabase.getDatabase(this@MainActivity)
+                val messages = withContext(Dispatchers.IO) {
+                    db.messageDao().getAllMessages()
+                }
+                messageList.clear()
+                messageList.addAll(messages)
+                adapter.notifyDataSetChanged()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error loading messages", e)
+                Toast.makeText(this@MainActivity, "加载消息失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     private fun clearAllMessages() {
-        try {
-            val db = AppDatabase.getDatabase(this)
-            db.messageDao().deleteAll()
-            messageList.clear()
-            adapter.notifyDataSetChanged()
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error clearing messages", e)
+        lifecycleScope.launch {
+            try {
+                val db = AppDatabase.getDatabase(this@MainActivity)
+                withContext(Dispatchers.IO) {
+                    db.messageDao().deleteAll()
+                }
+                messageList.clear()
+                adapter.notifyDataSetChanged()
+                Toast.makeText(this@MainActivity, "已清空", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error clearing messages", e)
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        try {
-            if (isNotificationServiceEnabled()) {
-                loadMessages()
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error in onResume", e)
+        if (isNotificationServiceEnabled()) {
+            loadMessages()
         }
     }
 
@@ -160,38 +158,47 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showFilterDialog() {
-        try {
-            val db = AppDatabase.getDatabase(this)
-            val appNames = db.messageDao().getAllAppNames().distinct()
+        lifecycleScope.launch {
+            try {
+                val db = AppDatabase.getDatabase(this@MainActivity)
+                val appNames = withContext(Dispatchers.IO) {
+                    db.messageDao().getAllAppNames()
+                }.distinct()
 
-            if (appNames.isEmpty()) {
-                Toast.makeText(this, "暂无消息记录", Toast.LENGTH_SHORT).show()
-                return
-            }
-
-            AlertDialog.Builder(this)
-                .setTitle("按 APP 筛选")
-                .setItems(appNames.toTypedArray()) { _, which ->
-                    val selectedApp = appNames[which]
-                    filterByApp(selectedApp)
+                if (appNames.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "暂无消息记录", Toast.LENGTH_SHORT).show()
+                    return@launch
                 }
-                .setNegativeButton("取消", null)
-                .show()
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error showing filter dialog", e)
-            Toast.makeText(this, "加载筛选列表失败: ${e.message}", Toast.LENGTH_SHORT).show()
+
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("按 APP 筛选")
+                    .setItems(appNames.toTypedArray()) { _, which ->
+                        val selectedApp = appNames[which]
+                        filterByApp(selectedApp)
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error showing filter dialog", e)
+                Toast.makeText(this@MainActivity, "加载筛选列表失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     private fun filterByApp(appName: String) {
-        try {
-            val db = AppDatabase.getDatabase(this)
-            messageList.clear()
-            messageList.addAll(db.messageDao().getMessagesByApp(appName))
-            adapter.notifyDataSetChanged()
-            supportActionBar?.subtitle = "筛选：$appName"
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error filtering by app", e)
+        lifecycleScope.launch {
+            try {
+                val db = AppDatabase.getDatabase(this@MainActivity)
+                val messages = withContext(Dispatchers.IO) {
+                    db.messageDao().getMessagesByApp(appName)
+                }
+                messageList.clear()
+                messageList.addAll(messages)
+                adapter.notifyDataSetChanged()
+                supportActionBar?.subtitle = "筛选：$appName"
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error filtering by app", e)
+            }
         }
     }
 }
