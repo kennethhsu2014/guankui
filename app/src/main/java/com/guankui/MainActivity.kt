@@ -162,10 +162,6 @@ class MainActivity : AppCompatActivity() {
                     showFilterDialog()
                     true
                 }
-                R.id.action_reset -> {
-                    resetFilter()
-                    true
-                }
                 else -> super.onOptionsItemSelected(item)
             }
         } catch (e: Exception) {

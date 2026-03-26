@@ -26,7 +26,7 @@ class NotificationListener : NotificationListenerService() {
                 }
 
                 // 获取该应用的所有活跃通知（处理通知组）
-                val activeNotifications = getActiveNotifications(packageName)
+                val activeNotifications = getActiveNotifications(arrayOf(packageName))
                 Log.d("NotificationListener", "活跃通知数量：${activeNotifications.size}")
 
                 for (activeSbn in activeNotifications) {
