@@ -6,6 +6,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -22,13 +23,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: MessageAdapter
     private val messageList = mutableListOf<NotificationMessage>()
+    private var currentFilter: String? = null  // 当前筛选的应用名称，null 表示查看全部
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         try {
-            setSupportActionBar(findViewById(R.id.toolbar))
+            val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+            setSupportActionBar(toolbar)
+            // 设置自定义标题布局
+            supportActionBar?.setDisplayShowTitleEnabled(false)
+            val titleView = layoutInflater.inflate(R.layout.toolbar_title, toolbar, false)
+            toolbar.addView(titleView)
         } catch (e: Exception) {
             Log.e("MainActivity", "Error setting toolbar", e)
         }
@@ -97,7 +104,13 @@ class MainActivity : AppCompatActivity() {
             try {
                 val db = AppDatabase.getDatabase(this@MainActivity)
                 val messages = withContext(Dispatchers.IO) {
-                    db.messageDao().getAllMessages()
+                    if (currentFilter != null) {
+                        // 如果有筛选，则加载指定应用的消息
+                        db.messageDao().getMessagesByApp(currentFilter!!)
+                    } else {
+                        // 如果没有筛选，加载全部消息
+                        db.messageDao().getAllMessages()
+                    }
                 }
                 messageList.clear()
                 messageList.addAll(messages)
@@ -149,6 +162,10 @@ class MainActivity : AppCompatActivity() {
                     showFilterDialog()
                     true
                 }
+                R.id.action_reset -> {
+                    resetFilter()
+                    true
+                }
                 else -> super.onOptionsItemSelected(item)
             }
         } catch (e: Exception) {
@@ -170,11 +187,19 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
 
+                // 构建选项列表：第一个是"查看全部"，后面是各个应用
+                val options = mutableListOf("查看全部").apply { addAll(appNames) }
+
                 AlertDialog.Builder(this@MainActivity)
                     .setTitle("按 APP 筛选")
-                    .setItems(appNames.toTypedArray()) { _, which ->
-                        val selectedApp = appNames[which]
-                        filterByApp(selectedApp)
+                    .setItems(options.toTypedArray()) { _, which ->
+                        if (which == 0) {
+                            // 选择"查看全部"
+                            resetFilter()
+                        } else {
+                            val selectedApp = appNames[which - 1]
+                            filterByApp(selectedApp)
+                        }
                     }
                     .setNegativeButton("取消", null)
                     .show()
@@ -186,6 +211,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun filterByApp(appName: String) {
+        currentFilter = appName
         lifecycleScope.launch {
             try {
                 val db = AppDatabase.getDatabase(this@MainActivity)
@@ -198,6 +224,25 @@ class MainActivity : AppCompatActivity() {
                 supportActionBar?.subtitle = "筛选：$appName"
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error filtering by app", e)
+            }
+        }
+    }
+
+    private fun resetFilter() {
+        currentFilter = null
+        lifecycleScope.launch {
+            try {
+                val db = AppDatabase.getDatabase(this@MainActivity)
+                val messages = withContext(Dispatchers.IO) {
+                    db.messageDao().getAllMessages()
+                }
+                messageList.clear()
+                messageList.addAll(messages)
+                adapter.notifyDataSetChanged()
+                supportActionBar?.subtitle = null
+                Toast.makeText(this@MainActivity, "已显示全部消息", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error resetting filter", e)
             }
         }
     }
