@@ -9,15 +9,11 @@ import kotlinx.coroutines.*
 class NotificationListener : NotificationListenerService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val processedKeys = mutableSetOf<String>()
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         serviceScope.launch {
             try {
                 val packageName = sbn.packageName
-                val appName = getAppName(packageName)
-
-                Log.d("NotificationListener", "收到通知：package=$packageName, app=$appName")
 
                 // 过滤掉自己的通知
                 if (packageName == applicationContext.packageName) {
@@ -25,49 +21,32 @@ class NotificationListener : NotificationListenerService() {
                     return@launch
                 }
 
-                // 获取该应用的所有活跃通知（处理通知组）
-                val activeNotifications = getActiveNotifications(arrayOf(packageName))
-                Log.d("NotificationListener", "活跃通知数量：${activeNotifications.size}")
+                val appName = getAppName(packageName)
+                val notification = sbn.notification
+                val title = notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+                val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+                val bigText = notification.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
+                val time = sbn.postTime
 
-                for (activeSbn in activeNotifications) {
-                    try {
-                        val notificationKey = activeSbn.key
-                        val notification = activeSbn.notification
-                        val title = notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-                        val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
-                        val bigText = notification.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
-                        val time = activeSbn.postTime
+                Log.d("NotificationListener", "收到通知：package=$packageName, app=$appName, title=$title")
 
-                        // 使用通知 key 去重
-                        if (processedKeys.contains(notificationKey)) {
-                            Log.d("NotificationListener", "跳过已处理的通知：$notificationKey")
-                            continue
-                        }
-                        processedKeys.add(notificationKey)
+                // 优先使用 BIG_TEXT（长文本），其次使用 TEXT
+                val content = if (bigText.isNotEmpty()) bigText else text
 
-                        // 优先使用 BIG_TEXT（长文本），其次使用 TEXT
-                        val content = if (bigText.isNotEmpty()) bigText else text
-
-                        Log.d("NotificationListener", "通知 key=$notificationKey, title=$title, content=$content")
-
-                        // 保存消息到数据库
-                        if (content.isNotEmpty()) {
-                            val message = NotificationMessage(
-                                appName = appName,
-                                packageName = packageName,
-                                title = title,
-                                content = content,
-                                timestamp = time
-                            )
-                            val db = AppDatabase.getDatabase(applicationContext)
-                            db.messageDao().insert(message)
-                            Log.d("NotificationListener", "已保存到数据库：$appName - $title")
-                        } else {
-                            Log.d("NotificationListener", "通知内容为空，跳过")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("NotificationListener", "处理单条通知失败", e)
-                    }
+                // 保存消息到数据库
+                if (content.isNotEmpty()) {
+                    val message = NotificationMessage(
+                        appName = appName,
+                        packageName = packageName,
+                        title = title,
+                        content = content,
+                        timestamp = time
+                    )
+                    val db = AppDatabase.getDatabase(applicationContext)
+                    db.messageDao().insert(message)
+                    Log.d("NotificationListener", "已保存到数据库：$appName - $title")
+                } else {
+                    Log.d("NotificationListener", "通知内容为空，跳过")
                 }
             } catch (e: Exception) {
                 Log.e("NotificationListener", "处理通知失败", e)
@@ -92,5 +71,15 @@ class NotificationListener : NotificationListenerService() {
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.d("NotificationListener", "服务已连接")
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        Log.w("NotificationListener", "服务已断开连接")
     }
 }
