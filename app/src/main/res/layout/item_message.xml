@@ -43,9 +43,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textStyle="bold"
-            android:textSize="14sp"
-            android:maxLines="1"
-            android:ellipsize="end" />
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/content"
@@ -53,9 +51,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textColor="@android:color/darker_gray"
-            android:textSize="13sp"
-            android:maxLines="3"
-            android:ellipsize="end" />
+            android:textSize="13sp" />
 
     </LinearLayout>
 
