@@ -147,14 +147,4 @@ class NotificationListener : NotificationListenerService() {
         // 请求系统重新绑定服务（尝试重启）
         requestRebind()
     }
-
-    override fun onListenerRankingChanged() {
-        super.onListenerRankingChanged()
-        Log.d("NotificationListener", "通知排序已变更")
-    }
-
-    override fun onListenerHintsChanged() {
-        super.onListenerHintsChanged()
-        Log.d("NotificationListener", "监听提示已变更")
-    }
 }
