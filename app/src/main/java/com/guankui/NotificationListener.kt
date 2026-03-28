@@ -18,7 +18,8 @@ class NotificationListener : NotificationListenerService() {
     private val FOREGROUND_SERVICE_ID = 1
     private val CHANNEL_ID = "listener_service"
 
-    override fun onNotificationPosted(sbn: StatusBarNotification) {
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        sbn ?: return
         serviceScope.launch {
             try {
                 val packageName = sbn.packageName
@@ -124,14 +125,9 @@ class NotificationListener : NotificationListenerService() {
         }
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
+        super.onNotificationRemoved(sbn)
         // 通知移除时不做处理
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        serviceScope.cancel()
-        Log.w("NotificationListener", "服务已销毁")
     }
 
     override fun onListenerConnected() {
@@ -141,10 +137,9 @@ class NotificationListener : NotificationListenerService() {
         startForegroundService()
     }
 
-    override fun onListenerDisconnected() {
-        super.onListenerDisconnected()
-        Log.w("NotificationListener", "服务已断开连接，请求重启")
-        // 请求系统重新绑定服务（尝试重启）
-        requestRebind()
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+        Log.w("NotificationListener", "服务已销毁")
     }
 }
